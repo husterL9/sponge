@@ -12,7 +12,6 @@ int main() {
             ByteStreamTestHarness test{"write-end-pop", 15};
 
             test.execute(Write{"cat"});
-
             test.execute(InputEnded{false});
             test.execute(BufferEmpty{false});
             test.execute(Eof{false});

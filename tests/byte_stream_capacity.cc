@@ -10,9 +10,7 @@ int main() {
     try {
         {
             ByteStreamTestHarness test{"overwrite", 2};
-
             test.execute(Write{"cat"}.with_bytes_written(2));
-
             test.execute(InputEnded{false});
             test.execute(BufferEmpty{false});
             test.execute(Eof{false});
