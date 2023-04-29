@@ -4,8 +4,8 @@
 #include "byte_stream.hh"
 
 #include <cstdint>
+#include <map>
 #include <string>
-
 //! \brief A class that assembles a series of excerpts from a byte stream (possibly out of order,
 //! possibly overlapping) into an in-order byte stream.
 class StreamReassembler {
@@ -15,6 +15,7 @@ class StreamReassembler {
     ByteStream _output;         //!< The reassembled in-order byte stream
     size_t _capacity;           //!< The maximum number of bytes
     size_t _unassembled_bytes;  //!< The number of bytes in the substrings stored but not yet reassembled
+    std::map<size_t, std::string> _unassemabled_strs;
 
   public:
     //! \brief Construct a `StreamReassembler` that will store up to `capacity` bytes.
@@ -47,6 +48,7 @@ class StreamReassembler {
     //! \brief Is the internal state empty (other than the output stream)?
     //! \returns `true` if no substrings are waiting to be assembled
     bool empty() const;
+    size_t first_unacceptable_index() const;
 };
 
 #endif  // SPONGE_LIBSPONGE_STREAM_REASSEMBLER_HH
