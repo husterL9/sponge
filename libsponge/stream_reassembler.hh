@@ -16,6 +16,8 @@ class StreamReassembler {
     size_t _capacity;           //!< The maximum number of bytes
     size_t _unassembled_bytes;  //!< The number of bytes in the substrings stored but not yet reassembled
     std::map<size_t, std::string> _unassemabled_strs;
+    bool _eof_flag{};
+    size_t _eof_idx = 0;
 
   public:
     //! \brief Construct a `StreamReassembler` that will store up to `capacity` bytes.

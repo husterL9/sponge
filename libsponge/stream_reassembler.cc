@@ -20,12 +20,31 @@ StreamReassembler::StreamReassembler(const size_t capacity)
 //! contiguous substrings and writes them into the output stream in order.
 void StreamReassembler::push_substring(const string &data, const size_t index, const bool eof) {
     DUMMY_CODE(data, index, eof);
+
     // 1.如果index大于等于_output.write_index()+capacity()，则直接丢弃
-    if (index >= _output.bytes_written() + _capacity)
+    if (index >= _output.bytes_written() + _capacity) {
+        if (eof) {
+            _eof_flag = true;
+            _eof_idx = index + data.size();
+        }
+
+        if (_eof_flag && _eof_idx <= _output.bytes_written())
+            _output.end_input();
         return;
+    }
+
     // 2.如果index+data.size()小于_output.write_index()，则直接丢弃
-    if (index + data.size() <= _output.bytes_written())
+    if (index + data.size() <= _output.bytes_written()) {
+        if (eof) {
+            _eof_flag = true;
+            _eof_idx = index + data.size();
+        }
+
+        if (_eof_flag && _eof_idx <= _output.bytes_written())
+            _output.end_input();
         return;
+    }
+
     // 3.如果index小于等于_output.write_index()，则需要截取data
     if (index <= _output.bytes_written()) {
         // 如果index+data.size()大于等于first_unacceptable_index(),则需要截取data,并将_unassemabled_strs清空
@@ -44,6 +63,13 @@ void StreamReassembler::push_substring(const string &data, const size_t index, c
             // 如果_unassemabled_strs没有元素，则直接写入
             if (_unassemabled_strs.empty()) {
                 _output.write(data.substr(start));
+                if (eof) {
+                    _eof_flag = true;
+                    _eof_idx = index + data.size();
+                }
+
+                if (_eof_flag && _eof_idx <= _output.bytes_written())
+                    _output.end_input();
                 return;
             }
             // 找到_unassemabled_strs中第一个大于等于index+data.size()的元素,如果没有则返回最后一个元素
@@ -57,6 +83,13 @@ void StreamReassembler::push_substring(const string &data, const size_t index, c
                     _output.write(data.substr(start));
                     _unassemabled_strs.clear();
                     _unassembled_bytes += 0;
+                    if (eof) {
+                        _eof_flag = true;
+                        _eof_idx = index + data.size();
+                    }
+
+                    if (_eof_flag && _eof_idx <= _output.bytes_written())
+                        _output.end_input();
                     return;
                 }
                 // 如果index+data.size()小于最后一个元素的index+data.size(),则需要截取data
@@ -73,6 +106,13 @@ void StreamReassembler::push_substring(const string &data, const size_t index, c
                     _output.write(data.substr(start) + it->second);
                     _unassemabled_strs.erase(it);
                     _unassembled_bytes -= it->second.size();
+                    if (eof) {
+                        _eof_flag = true;
+                        _eof_idx = index + data.size();
+                    }
+
+                    if (_eof_flag && _eof_idx <= _output.bytes_written())
+                        _output.end_input();
                     return;
                 }
                 // 如果index+data.size()大于it->first，如果it有上一个元素，则拿到上一个元素查看和data的重叠情况
@@ -84,6 +124,13 @@ void StreamReassembler::push_substring(const string &data, const size_t index, c
                         _output.write(data.substr(start) + it->second);
                         _unassemabled_strs.erase(it);
                         _unassembled_bytes -= it->second.size();
+                        if (eof) {
+                            _eof_flag = true;
+                            _eof_idx = index + data.size();
+                        }
+
+                        if (_eof_flag && _eof_idx <= _output.bytes_written())
+                            _output.end_input();
                         return;
                     }
                     // 如果index+data.size()小于pre_it->first+pre_it->second.size(),则需要截取data
@@ -92,11 +139,25 @@ void StreamReassembler::push_substring(const string &data, const size_t index, c
                     _output.write(pre_it->second);
                     _unassemabled_strs.erase(pre_it);
                     _unassembled_bytes -= pre_it->second.size();
+                    if (eof) {
+                        _eof_flag = true;
+                        _eof_idx = index + data.size();
+                    }
+
+                    if (_eof_flag && _eof_idx <= _output.bytes_written())
+                        _output.end_input();
                     return;
                 }
                 // 如果it没有上一个元素，直接将data写入
                 else {
                     _output.write(data.substr(start));
+                    if (eof) {
+                        _eof_flag = true;
+                        _eof_idx = index + data.size();
+                    }
+
+                    if (_eof_flag && _eof_idx <= _output.bytes_written())
+                        _output.end_input();
                     return;
                 }
             }
@@ -111,7 +172,7 @@ void StreamReassembler::push_substring(const string &data, const size_t index, c
             size_t len = unacceptable_index - index;
             // 将与data重叠的元素删除,并将拼接好的新串加入到_unassemabled_strs中
             auto it = _unassemabled_strs.lower_bound(index);
-            if (it != _unassemabled_strs.begin()) {
+            if (it != _unassemabled_strs.end()) {
                 auto pre_it = it;
                 pre_it--;
                 if (pre_it->first + pre_it->second.size() > index) {
@@ -126,6 +187,13 @@ void StreamReassembler::push_substring(const string &data, const size_t index, c
                     _unassemabled_strs[pre_it->first] = new_str;
                     _unassembled_bytes += new_str.size();
                 }
+                if (eof) {
+                    _eof_flag = true;
+                    _eof_idx = index + data.size();
+                }
+
+                if (_eof_flag && _eof_idx <= _output.bytes_written())
+                    _output.end_input();
                 return;
             } else {
                 // 去除it以及之后的元素
@@ -136,6 +204,13 @@ void StreamReassembler::push_substring(const string &data, const size_t index, c
                 // 将新字符串加入到_unassemabled_strs中
                 _unassemabled_strs[index] = data.substr(0, len);
                 _unassembled_bytes += len;
+                if (eof) {
+                    _eof_flag = true;
+                    _eof_idx = index + data.size();
+                }
+
+                if (_eof_flag && _eof_idx <= _output.bytes_written())
+                    _output.end_input();
                 return;
             }
         }
@@ -146,22 +221,47 @@ void StreamReassembler::push_substring(const string &data, const size_t index, c
                 // 将data写入_unassemabled_strs
                 _unassemabled_strs[index] = data;
                 _unassembled_bytes += data.size();
+                if (eof) {
+                    _eof_flag = true;
+                    _eof_idx = index + data.size();
+                }
+
+                if (_eof_flag && _eof_idx <= _output.bytes_written())
+                    _output.end_input();
                 return;
             }
-            // 找到_unassemabled_strs中第一个大于等于index的元素,如果没有则返回最后一个元素
+            // 找到_unassemabled_strs中第一个大于等于index的元素,如果没有则返回第一个元素
             auto it = _unassemabled_strs.lower_bound(index);
+            // 没有找到第一个大于等于index的元素，拿到第一个小于index的元素
             if (it == _unassemabled_strs.end()) {
-                // 如果没有则返回最后一个元素
-                it = _unassemabled_strs.end();
+                // 拿到第一个小于index的元素
                 it--;
-                // 如果index大于最后一个元素的index+data.size(),则直接写入
-                if (index < it->first + it->second.size()) {
+                // 如果it包含data,则直接返回
+                if (it->first + it->second.size() >= index + data.size()) {
+                    if (eof) {
+                        _eof_flag = true;
+                        _eof_idx = index + data.size();
+                    }
+
+                    if (_eof_flag && _eof_idx <= _output.bytes_written())
+                        _output.end_input();
+                    return;
+                }
+                // 如果index大于第一个元素的index+data.size(),则直接写入
+                if (index > it->first + it->second.size()) {
                     // 将data写入_unassemabled_strs
                     _unassemabled_strs[index] = data;
                     _unassembled_bytes += data.size();
+                    if (eof) {
+                        _eof_flag = true;
+                        _eof_idx = index + data.size();
+                    }
+
+                    if (_eof_flag && _eof_idx <= _output.bytes_written())
+                        _output.end_input();
                     return;
                 }
-                // 如果index小于等于最后一个元素的index+data.size(),则需要截取data
+                // 如果index小于等于第一个元素的index+data.size(),则需要截取data
                 else {
                     size_t overlap_len = it->first + it->second.size() - index;
                     // 将与data重叠的元素删除,并将拼接好的新串加入到_unassemabled_strs中
@@ -169,21 +269,30 @@ void StreamReassembler::push_substring(const string &data, const size_t index, c
                     // 将新字符串加入到_unassemabled_strs中
                     _unassemabled_strs[it->first] = new_str;
                     _unassembled_bytes += data.size() - overlap_len;
+                    if (eof) {
+                        _eof_flag = true;
+                        _eof_idx = index + data.size();
+                    }
+
+                    if (_eof_flag && _eof_idx <= _output.bytes_written())
+                        _output.end_input();
                     return;
                 }
             }
-            // 存在大于等于index的元素
+            // 存在第一个大于等于index的元素,这种情况需要同时处理首部和尾部重叠
             else {
                 auto temp_len = data.size();
+                auto temp_str = data;
                 auto temp = index;
                 //  申明flag,初始化为it
                 auto flag_start = it;
                 // 拿到第一个大于等于index的元素，判断他是否为_unassebled_strs的第一个元素
+                // 处理首部重叠
                 if (it != _unassemabled_strs.begin()) {
                     // 将it复制给pre_it
                     auto pre_it = it;
                     pre_it--;
-                    // 如果index大于等于pre_it->first+pre_it->second.size()
+                    // 如果index大于pre_it->first+pre_it->second.size()
                     if (index > pre_it->first + pre_it->second.size()) {
                         // 将data加入到_unassemabled_strs中
                         _unassemabled_strs[index] = data;
@@ -192,15 +301,22 @@ void StreamReassembler::push_substring(const string &data, const size_t index, c
                     }
                     // 如果index小于等于pre_it->first+pre_it->second.size()，则需要截取data
                     else {
-                        // 如果pre_it的长度大于data的长度，则直接返回
-                        if (pre_it->second.size() >= data.size()) {
+                        // 如果pre_it包含data，则直接返回
+                        if (pre_it->first + pre_it->second.size() >= index + data.size()) {
+                            if (eof) {
+                                _eof_flag = true;
+                                _eof_idx = index + data.size();
+                            }
+
+                            if (_eof_flag && _eof_idx <= _output.bytes_written())
+                                _output.end_input();
                             return;
                         }
                         // size_t overlap_len = pre_it->first + pre_it->second.size() - index;
                         // 将与data重叠的元素删除,并将拼接好的新串加入到_unassemabled_strs中
-                        string new_str = data + pre_it->second.substr(pre_it->first, index - pre_it->first);
+                        temp_str += pre_it->second.substr(pre_it->first, index - pre_it->first);  // 不会越界
                         // 将新串加入到_unassemabled_strs中
-                        _unassemabled_strs[pre_it->first] = new_str;
+                        _unassemabled_strs[pre_it->first] = temp_str;
                         _unassembled_bytes -= pre_it->second.size();
                         temp = pre_it->first;
                         temp_len += index - pre_it->first;
@@ -208,32 +324,37 @@ void StreamReassembler::push_substring(const string &data, const size_t index, c
                     }
                 } else {
                     flag_start = it;
-                    _unassemabled_strs[index] = data;
+                    _unassemabled_strs[temp] = data;
                 }
-                // 拿到_unassemabled_strs中第一个大于等于index+data.size()的元素
-                auto end_it = _unassemabled_strs.lower_bound(index + data.size());
+                // 拿到_unassemabled_strs中第一个大于index+data.size()的元素
+                auto end_it = _unassemabled_strs.upper_bound(index + data.size());
                 auto flag_end = end_it;
-                if (end_it == _unassemabled_strs.end()) {
-                    // 将it复制给pre_it
-                    auto pre_it = it;
-                    pre_it--;
-                    // 如果index+data.size()大于pre_it->first+pre_it->second.size()
-                    if (index + data.size() > pre_it->first + pre_it->second.size()) {
-                        // 将end_it复制给flag
-                        flag_end = end_it;
-                    }
-                    // 如果index+data.size()小于等于pre_it->first+pre_it->second.size()，则需要截取data
-                    else {
-                        size_t overlap_len = index + data.size() - pre_it->first;
-                        // 将与data重叠的元素删除,并将拼接好的新串加入到_unassemabled_strs中
-                        string new_str = pre_it->second + data.substr(0, data.size() - overlap_len);
-                        // 将新串加入到_unassemabled_strs中
-                        _unassemabled_strs[temp] = new_str;
-                        _unassembled_bytes -= pre_it->second.size();
-                        temp_len += pre_it->first + pre_it->second.size() - index - data.size();
-                        flag_end = end_it;
-                    }
+                // 将it复制给pre_it
+                auto pre_it = end_it;
+                pre_it--;
+                // 如果index+data.size()大于pre_it->first+pre_it->second.size()
+                if (index + data.size() > pre_it->first + pre_it->second.size()) {
+                    // 将end_it复制给flag
+                    flag_end = end_it;
                 }
+                // 如果index+data.size()小于等于pre_it->first+pre_it->second.size()，则需要截取data
+                else {
+                    // size_t overlap_len = index + data.size() - pre_it->first;
+                    // 将与data重叠的元素删除,并将拼接好的新串加入到_unassemabled_strs中
+                    temp_str += pre_it->second.substr(index + data.size(),
+                                                      pre_it->first + pre_it->second.size() - index -
+                                                          data.size());  // 这里不会越界
+                    // 将新串加入到_unassemabled_strs中
+                    _unassemabled_strs[temp] = temp_str;
+                    _unassembled_bytes -= index + data.size() - pre_it->first;
+                    temp_len += pre_it->first + pre_it->second.size() - index - data.size();
+                    flag_end = end_it;
+                }
+                //_unassemabled_strs中存在大于index+data.size()的元素
+                // else {
+                //     _unassemabled_strs[temp] = temp_str;
+                //     flag_end = end_it;
+                // }
                 // 将temp_len加入到_unassembled_bytes中
                 _unassembled_bytes += temp_len;
                 // 将flag_start到flag_end之间的元素删除,erase是前闭后开的
@@ -242,6 +363,13 @@ void StreamReassembler::push_substring(const string &data, const size_t index, c
             }
         }
     }
+    if (eof) {
+        _eof_flag = true;
+        _eof_idx = index + data.size();
+    }
+
+    if (_eof_flag && _eof_idx <= _output.bytes_written())
+        _output.end_input();
 }
 
 size_t StreamReassembler::unassembled_bytes() const { return _unassembled_bytes; }
