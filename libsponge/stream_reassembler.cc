@@ -94,17 +94,156 @@ void StreamReassembler::push_substring(const string &data, const size_t index, c
                     _unassembled_bytes -= pre_it->second.size();
                     return;
                 }
+                // 如果it没有上一个元素，直接将data写入
+                else {
+                    _output.write(data.substr(start));
+                    return;
+                }
             }
         }
 
-    } else {
-        size_t len = min(data.size(), _capacity - _unassembled_bytes);
-        _unassemabled_strs[index] = data.substr(0, len);
-        _unassembled_bytes += len;
+    }
+    // 处理index大于_output.write_index()的情况
+    else {
+        // 如果index+data.size()大于等于first_unacceptable_index(),则需要截取data
+        size_t unacceptable_index = first_unacceptable_index();
+        if (index + data.size() >= unacceptable_index) {
+            size_t len = unacceptable_index - index;
+            // 将与data重叠的元素删除,并将拼接好的新串加入到_unassemabled_strs中
+            auto it = _unassemabled_strs.lower_bound(index);
+            if (it != _unassemabled_strs.begin()) {
+                auto pre_it = it;
+                pre_it--;
+                if (pre_it->first + pre_it->second.size() > index) {
+                    // 去掉重复部分，拼接data和pre_it->second，得到一个新字符串
+                    string new_str = data.substr(0, len) + pre_it->second.substr(pre_it->first, index - pre_it->first);
+                    // 使用循环去除_unassemabled_strs中pre_it以及之后的元素
+                    while (pre_it != _unassemabled_strs.end()) {
+                        _unassembled_bytes -= pre_it->second.size();
+                        pre_it = _unassemabled_strs.erase(pre_it);
+                    }
+                    // 将新字符串加入到_unassemabled_strs中
+                    _unassemabled_strs[pre_it->first] = new_str;
+                    _unassembled_bytes += new_str.size();
+                }
+                return;
+            } else {
+                // 去除it以及之后的元素
+                while (it != _unassemabled_strs.end()) {
+                    _unassembled_bytes -= it->second.size();
+                    it = _unassemabled_strs.erase(it);
+                }
+                // 将新字符串加入到_unassemabled_strs中
+                _unassemabled_strs[index] = data.substr(0, len);
+                _unassembled_bytes += len;
+                return;
+            }
+        }
+        // 如果index+data.size()小于first_unacceptable_index(),判断data首尾是否与_unassemabled_strs中的元素重叠
+        else {
+            // 如果_unassemabled_strs为空，则直接写入
+            if (_unassemabled_strs.empty()) {
+                // 将data写入_unassemabled_strs
+                _unassemabled_strs[index] = data;
+                _unassembled_bytes += data.size();
+                return;
+            }
+            // 找到_unassemabled_strs中第一个大于等于index的元素,如果没有则返回最后一个元素
+            auto it = _unassemabled_strs.lower_bound(index);
+            if (it == _unassemabled_strs.end()) {
+                // 如果没有则返回最后一个元素
+                it = _unassemabled_strs.end();
+                it--;
+                // 如果index大于最后一个元素的index+data.size(),则直接写入
+                if (index < it->first + it->second.size()) {
+                    // 将data写入_unassemabled_strs
+                    _unassemabled_strs[index] = data;
+                    _unassembled_bytes += data.size();
+                    return;
+                }
+                // 如果index小于等于最后一个元素的index+data.size(),则需要截取data
+                else {
+                    size_t overlap_len = it->first + it->second.size() - index;
+                    // 将与data重叠的元素删除,并将拼接好的新串加入到_unassemabled_strs中
+                    string new_str = it->second + data.substr(index + overlap_len);
+                    // 将新字符串加入到_unassemabled_strs中
+                    _unassemabled_strs[it->first] = new_str;
+                    _unassembled_bytes += data.size() - overlap_len;
+                    return;
+                }
+            }
+            // 存在大于等于index的元素
+            else {
+                auto temp_len = data.size();
+                auto temp = index;
+                //  申明flag,初始化为it
+                auto flag_start = it;
+                // 拿到第一个大于等于index的元素，判断他是否为_unassebled_strs的第一个元素
+                if (it != _unassemabled_strs.begin()) {
+                    // 将it复制给pre_it
+                    auto pre_it = it;
+                    pre_it--;
+                    // 如果index大于等于pre_it->first+pre_it->second.size()
+                    if (index > pre_it->first + pre_it->second.size()) {
+                        // 将data加入到_unassemabled_strs中
+                        _unassemabled_strs[index] = data;
+                        // 将it复制给flag
+                        flag_start = it;
+                    }
+                    // 如果index小于等于pre_it->first+pre_it->second.size()，则需要截取data
+                    else {
+                        // 如果pre_it的长度大于data的长度，则直接返回
+                        if (pre_it->second.size() >= data.size()) {
+                            return;
+                        }
+                        // size_t overlap_len = pre_it->first + pre_it->second.size() - index;
+                        // 将与data重叠的元素删除,并将拼接好的新串加入到_unassemabled_strs中
+                        string new_str = data + pre_it->second.substr(pre_it->first, index - pre_it->first);
+                        // 将新串加入到_unassemabled_strs中
+                        _unassemabled_strs[pre_it->first] = new_str;
+                        _unassembled_bytes -= pre_it->second.size();
+                        temp = pre_it->first;
+                        temp_len += index - pre_it->first;
+                        flag_start = it;
+                    }
+                } else {
+                    flag_start = it;
+                    _unassemabled_strs[index] = data;
+                }
+                // 拿到_unassemabled_strs中第一个大于等于index+data.size()的元素
+                auto end_it = _unassemabled_strs.lower_bound(index + data.size());
+                auto flag_end = end_it;
+                if (end_it == _unassemabled_strs.end()) {
+                    // 将it复制给pre_it
+                    auto pre_it = it;
+                    pre_it--;
+                    // 如果index+data.size()大于pre_it->first+pre_it->second.size()
+                    if (index + data.size() > pre_it->first + pre_it->second.size()) {
+                        // 将end_it复制给flag
+                        flag_end = end_it;
+                    }
+                    // 如果index+data.size()小于等于pre_it->first+pre_it->second.size()，则需要截取data
+                    else {
+                        size_t overlap_len = index + data.size() - pre_it->first;
+                        // 将与data重叠的元素删除,并将拼接好的新串加入到_unassemabled_strs中
+                        string new_str = pre_it->second + data.substr(0, data.size() - overlap_len);
+                        // 将新串加入到_unassemabled_strs中
+                        _unassemabled_strs[temp] = new_str;
+                        _unassembled_bytes -= pre_it->second.size();
+                        temp_len += pre_it->first + pre_it->second.size() - index - data.size();
+                        flag_end = end_it;
+                    }
+                }
+                // 将temp_len加入到_unassembled_bytes中
+                _unassembled_bytes += temp_len;
+                // 将flag_start到flag_end之间的元素删除,erase是前闭后开的
+                auto earse_end = ++flag_end;
+                _unassemabled_strs.erase(flag_start, earse_end);
+            }
+        }
     }
 }
 
 size_t StreamReassembler::unassembled_bytes() const { return _unassembled_bytes; }
-
 bool StreamReassembler::empty() const { return _unassembled_bytes == 0; }
 size_t StreamReassembler::first_unacceptable_index() const { return _output.bytes_read() + _capacity; }
